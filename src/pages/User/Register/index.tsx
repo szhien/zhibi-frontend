@@ -1,12 +1,12 @@
 import { Footer } from '@/components';
-import { userLoginUsingPost } from '@/services/zhibi/userController';
+import { userRegisterUsingPost } from '@/services/zhibi/userController';
 import { LockOutlined, UserOutlined } from '@ant-design/icons';
 import { LoginForm, ProFormText } from '@ant-design/pro-components';
-import { Helmet, history, Link, useModel } from '@umijs/max';
+import { Helmet, Link } from '@umijs/max';
 import { message, Tabs } from 'antd';
 import { createStyles } from 'antd-style';
 import React, { useState } from 'react';
-import { flushSync } from 'react-dom';
+import { history } from 'umi';
 
 const useStyles = createStyles(({ token }) => {
   return {
@@ -45,55 +45,44 @@ const useStyles = createStyles(({ token }) => {
 });
 
 const Login: React.FC = () => {
-  const [userLoginState, setUserLoginState] = useState<API.LoginUserVO>({});
   const [type, setType] = useState<string>('account');
-  const { initialState, setInitialState } = useModel('@@initialState');
   const { styles } = useStyles();
-  const fetchUserInfo = async () => {
-    const userInfo = await initialState?.fetchUserInfo?.();
-    if (userInfo) {
-      flushSync(() => {
-        setInitialState((s) => ({
-          ...s,
-          currentUser: userInfo,
-        }));
-      });
+  const handleSubmit = async (values: API.UserRegisterRequest) => {
+    const { userPassword, checkPassword } = values;
+    // 校验
+    if (userPassword !== checkPassword) {
+      message.error('两次输入的密码不一致');
+      return;
     }
-  };
-  const handleSubmit = async (values: API.UserLoginRequest) => {
+
     try {
-      // 登录
-      const res = await userLoginUsingPost({
-        ...values,
-      });
+      // 注册
+      const res = await userRegisterUsingPost(values);
       if (res.code === 0) {
-        const defaultLoginSuccessMessage = '登录成功！';
+        const defaultLoginSuccessMessage = '注册成功！';
         message.success(defaultLoginSuccessMessage);
-        await fetchUserInfo();
-        const urlParams = new URL(window.location.href).searchParams;
-        history.push(urlParams.get('redirect') || '/');
+
+        /** 此方法会跳转到 redirect 参数所在的位置 */
+        if (!history) return;
+        const { query } = history.location;
+        history.push({
+          pathname: '/user/login',
+          query,
+        });
         return;
       }
-      // console.log(res);
+      //后端注册服务失败
       message.error(res.message);
-      // 如果失败去设置用户错误信息
-      setUserLoginState(res.data as API.LoginUserVO);
-    } catch (error) {
-      const defaultLoginFailureMessage = '登录失败，请重试！';
-      console.log(error);
+    } catch (error: any) {
+      const defaultLoginFailureMessage = '注册失败，请重试！';
       message.error(defaultLoginFailureMessage);
     }
   };
-  // const { status, type: loginType } = userLoginState;
-  // useEffect(() => {
-  //   listChartByPageUsingPost({}).then((res) => {
-  //     console.log('res:' + res.data);
-  //   });
-  // });
+
   return (
     <div className={styles.container}>
       <Helmet>
-        <title>{'登录'} </title>
+        <title>{'注册'} </title>
       </Helmet>
       <div
         style={{
@@ -110,7 +99,7 @@ const Login: React.FC = () => {
           title="Zhi BI"
           subTitle={'Zhi BI 是西湖区最具影响力的 Web 设计规范'}
           onFinish={async (values) => {
-            await handleSubmit(values as API.UserLoginRequest);
+            await handleSubmit(values as API.UserRegisterRequest);
           }}
         >
           <Tabs
@@ -120,7 +109,7 @@ const Login: React.FC = () => {
             items={[
               {
                 key: 'account',
-                label: '账户密码登录',
+                label: '新用户注册',
               },
             ]}
           />
@@ -155,6 +144,20 @@ const Login: React.FC = () => {
                   },
                 ]}
               />
+              <ProFormText.Password
+                name="checkPassword"
+                fieldProps={{
+                  size: 'large',
+                  prefix: <LockOutlined />,
+                }}
+                placeholder={'请再次输入密码'}
+                rules={[
+                  {
+                    required: true,
+                    message: '密码是必填项！',
+                  },
+                ]}
+              />
             </>
           )}
           <div
@@ -162,7 +165,7 @@ const Login: React.FC = () => {
               marginBottom: 24,
             }}
           >
-            <Link to="/user/register">注册</Link>
+            <Link to="/user/login">已有账号？</Link>
           </div>
         </LoginForm>
       </div>
